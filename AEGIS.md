@@ -7,23 +7,31 @@
 
 > *Aegis (n.) — a shield or protection. From the Greek aigis, the protective armor of the gods.*
 > *Aedes aegypti — the mosquito that carries dengue.*
-> *The name is not a coincidence.*
 
 ---
 
-*Primary research reference — living document, not a thesis draft.*
-*Project by a 3rd year CS undergrad, Dasmariñas, Calabarzon, Philippines.*
-*Last updated: June 2026*
+*Primary umbrella document and living source of truth*
+*Last updated: June 2026 — revised following the research-framing pass (Decisions #14–#17) and the methods-novelty audit*
 
 ---
 
 ## 00 How to use this document
 
-This is `AEGIS.md` — the primary source of truth for the Aegis project. It is not a thesis draft, a proposal, or a literature review. Its job is to keep your thinking organized as the project evolves — so you can return to it after a week away from the work and immediately remember what you are building, why, and where you are.
+This is `AEGIS.md` — the **umbrella** for the Aegis project. It holds the north star, the dengue domain, the formal problem, the RL engine, and the overall picture. As the project's documentation has grown, specific concerns now live in dedicated files, and this document points to them rather than duplicating them:
 
-Every section has a distinct purpose. Read **section 01** when you need to re-ground yourself emotionally. Read **sections 02–04** when you need to explain or remember the technical structure. Read **section 05** when preparing related work. Read **section 06** when designing experiments. Read **section 07** when choosing what to study next. Read **section 08** when you forget a term mid-read.
+| Document | Owns |
+|---|---|
+| **`AEGIS.md` (this)** | The umbrella: north star, domain, formal problem, RL engine, the whole picture. |
+| `THESIS.md` | **The research challenge**: the full hard problem, the claimed contribution, the research question, the experiments. *Read this for anything about the thesis contribution.* |
+| `PRODUCT.md` | The product and engineering: web tool, screens, architecture, data model. |
+| `CURRICULUM.md` | The engineering-PoC build plan (the watered-down regime, to July). |
+| `GAP.md` | The **domain** novelty (dengue + RL). |
+| `GAP_METHODS.md` → `research/DSCOPDWIBMDRPOMDP.md` | The **methods** novelty (observation-structure characterization in deep-RL POMDPs). |
+| `DECISIONS.md` | The decision log. |
 
-**What is marked ⚠ OPEN** is an explicit design decision that has not yet been made. Do not treat these as gaps to fill in immediately — they are honest placeholders. The document is more useful with honest uncertainty than with premature answers.
+Read **section 01** to re-ground emotionally. Read **02–04** for the technical structure. Read **05** for scope. Read **07/07b** for the RL engine. Read **08** for prior work. Read **THESIS.md** for the research contribution in full. **What is marked ⚠ OPEN** is an explicit undecided design decision; **✓ DECIDED** is resolved and recorded with rationale. Do not re-open decided questions without a specific reason.
+
+> **Note on this revision.** Following the research-framing pass, the thesis now stakes **one** contribution axis (partial observability) rather than "all the hard things at once," and the method for it is **held open** (the world model is the *leading candidate*, not the chosen solution — Decision #15). The detailed research framing has moved to `THESIS.md`; this document now summarizes and points there to avoid drift.
 
 ---
 
@@ -37,9 +45,9 @@ That is the problem. Not dengue forecasting. Not epidemiological modeling. Not a
 
 > *Can we build an RL agent that learns intervention policies good enough to be trusted by a real health officer, trained on the kind of incomplete, noisy, resource-constrained reality they actually live in?*
 
-The research novelty is not the domain. It is what you have to invent to make the agent work under the three simultaneous constraints that define the health officer's reality: delayed feedback, incomplete information, and a hard budget limit. Those three things together, in a vector-borne disease setting, have never been tackled in the literature. The dengue domain is the vehicle. The method that emerges from solving it is the contribution.
+The health officer's reality is hard along several axes at once — delayed feedback, incomplete information, a hard budget, spatial choice, a world that won't match the model. That full landscape is the *motivation*. The thesis does not try to conquer all of it; it stakes **one** axis as its scientific contribution and frames the rest honestly as the landscape and as future work. See `THESIS.md` for which axis, why, and what is deferred.
 
-This project is inspired by the AlphaFold model of research: pick a real problem that matters, understand it deeply enough to see what current tools cannot do, and build whatever is necessary. The theory follows the problem, not the other way around.
+This project is inspired by the AlphaFold model of research: pick a real problem that matters, understand it deeply enough to see what current tools cannot do, and build whatever is necessary. The theory follows the problem, not the other way around. That is why the method for the chosen axis is held open until the problem shows what it demands.
 
 That is what Aegis is.
 
@@ -61,45 +69,42 @@ This structure has a critical consequence for control: you cannot stop dengue by
 
 ### 2.2 The SEIR-SEI model
 
-**SEIR-SEI** (pronounced as letters: S-E-I-R, S-E-I) is the standard compartmental model for dengue. It tracks two interacting populations — humans and mosquitoes — each partitioned into disease stages. "Compartmental" means every individual is assumed to be in exactly one stage at a time, and the model tracks how many individuals move between stages over time.
+**SEIR-SEI** is the standard compartmental model for dengue. It tracks two interacting populations — humans and mosquitoes — each partitioned into disease stages.
 
 #### Human compartments (SEIR)
 
 | Compartment | Meaning |
 |---|---|
 | **S — Susceptible** | Healthy humans with no immunity. Can be infected by a bite from an infectious mosquito. |
-| **E — Exposed** | Infected but not yet infectious. The virus is replicating. Duration: approximately 5–7 days. Also called the intrinsic incubation period. |
-| **I — Infectious** | Sick and capable of infecting a mosquito that bites them. Duration: approximately 5–7 days. This is when symptoms appear. |
-| **R — Recovered** | Immune to the specific dengue serotype that infected them. There are four serotypes (DENV-1 to DENV-4); recovery from one does not guarantee immunity to others. |
+| **E — Exposed** | Infected but not yet infectious. Duration: approximately 5–7 days. |
+| **I — Infectious** | Sick and capable of infecting a mosquito. Duration: approximately 5–7 days. |
+| **R — Recovered** | Immune to the specific dengue serotype that infected them. |
 
 #### Mosquito compartments (SEI)
 
-Mosquitoes use a simplified three-compartment model because they do not recover — once infectious, an *Aedes* mosquito remains infectious until it dies.
-
 | Compartment | Meaning |
 |---|---|
-| **Sm — Susceptible mosquitoes** | Healthy adult mosquitoes capable of being infected. Population size is driven by rainfall and temperature: more rain → more standing water → more breeding sites → more mosquitoes. |
-| **Em — Exposed mosquitoes** | Mosquitoes that have bitten an infectious human and are now carrying the virus but cannot yet transmit it. Duration: approximately 8–12 days. Also called the extrinsic incubation period. |
-| **Im — Infectious mosquitoes** | Mosquitoes capable of infecting humans. They remain in this state until they die (adult mosquito lifespan: approximately 2–4 weeks). |
+| **Sm — Susceptible mosquitoes** | Healthy adult mosquitoes. Population driven by rainfall and temperature. |
+| **Em — Exposed mosquitoes** | Carrying the virus, not yet transmitting. Duration: approximately 8–12 days. |
+| **Im — Infectious mosquitoes** | Capable of infecting humans. Remain infectious until death. |
 
 #### How the two populations interact
 
-The coupling between the human and mosquito models is through the biting rate. The rate at which susceptible humans become exposed (S → E) depends on how many infectious mosquitoes there are. The rate at which susceptible mosquitoes become exposed (Sm → Em) depends on how many infectious humans there are. This bidirectional coupling is what makes dengue hard to control — you have to manage both populations simultaneously.
+The coupling is through the biting rate. S → E rate depends on Im count. Sm → Em rate depends on I count. This bidirectional coupling means you must manage both populations simultaneously.
+
+> **Scope note (serotypes).** A single SEIR-SEI with one R compartment ignores the four dengue serotypes and antibody-dependent enhancement, under which a second heterologous infection drives severe disease. Defensible for a single 26-week season; flagged honestly as a simplification, since "cases" ≠ "severe cases/deaths," which is what the officer most wants to prevent.
 
 ### 2.3 How interventions map to the model
 
-Each intervention type targets a different compartment or parameter. Understanding this mapping is essential for designing the action space of the RL agent.
+Each intervention targets a different compartment or parameter. This mapping defines the action space.
 
-| Intervention | What it targets | Effect in the model |
-|---|---|---|
-| **Fogging (space spraying)** | Im — adult mosquitoes | Reduces Im directly. Fast-acting but short-lived (days). Does not affect larvae or eggs. |
-| **Larviciding** | Pre-Sm — larvae | Reduces the recruitment rate into Sm. Effect appears 1–2 weeks later as larvae die before reaching adulthood. |
-| **Larval source reduction (LSR)** | Breeding sites | Reduces the carrying capacity of the mosquito population. Removes standing water. Effect accumulates over weeks. |
-| **Wolbachia release** | Sm and Im | Releases Wolbachia-infected mosquitoes that suppress dengue transmission. Long-horizon, irreversible. Still experimental at scale in the Philippines. |
-| **Vaccination (TAK-003, Dengvaxia)** | S humans | Moves susceptible humans to a protected state. Serotype-specific coverage. Requires prior serosurvey. |
-| **Community campaigns** | Breeding behavior | Reduces household-level breeding sites through behavior change. Hard to quantify. Effect is diffuse and delayed. |
+| Intervention | What it targets | Effect in the model | Effective horizon |
+|---|---|---|---|
+| **Fogging** | Im — adult mosquitoes | Reduces Im directly. Fast but short-lived (days). | Short — days |
+| **Larviciding** | Pre-Sm — larvae | Reduces recruitment into Sm. Effect appears 1–2 weeks later. | Medium — weeks |
+| **LSR** | Breeding sites | Reduces carrying capacity. Effect accumulates over weeks. | Long — weeks to months |
 
-The key observation: no single intervention is sufficient. Fogging reduces adult mosquitoes fast but the population rebounds within days if breeding sites are untouched. Larviciding and LSR take weeks to show effect. A rational strategy sequences them — but the right sequence depends on the current state of both the human and mosquito populations, the time in the season, and the remaining budget. That sequencing problem is precisely what the RL agent must learn.
+**The combo insight:** No single intervention is sufficient. Fogging reduces adult mosquitoes fast but the population rebounds within days if breeding sites are untouched. Larviciding and LSR take weeks to show effect. A rational strategy sequences them — but the right sequence depends on current state, time in season, and remaining budget. Each intervention has a different effective horizon, meaning the agent is dealing with multiple overlapping delayed-reward problems simultaneously. That sequencing problem is precisely what the RL agent must learn.
 
 ---
 
@@ -107,115 +112,91 @@ The key observation: no single intervention is sufficient. Fogging reduces adult
 
 ### 3.1 What is a Markov Decision Process (MDP)?
 
-**Markov Decision Process (MDP)** — the mathematical framework for any problem where an agent makes sequential decisions, each affecting the future, with the goal of maximizing cumulative reward over time.
+An MDP has five components. Every RL problem is formally an MDP.
 
-An MDP has five components. Every RL problem is formally an MDP. The dengue problem maps cleanly onto all five.
+| MDP Component | Plain meaning | Dengue mapping |
+|---|---|---|
+| **State (S)** | Everything the agent observes | Case counts, week, rainfall, budget, recent interventions |
+| **Action (A)** | What the agent can do | Deploy fogging / larviciding / LSR in target area |
+| **Reward (R)** | Signal after taking action | Cases averted minus intervention cost |
+| **Transition (T)** | How world changes | SEIR-SEI ODE simulator |
+| **Discount (γ)** | How much to value future rewards | High γ needed — LSR reward arrives weeks later |
 
-| MDP Component | Plain meaning |
-|---|---|
-| **State (S)** | Everything the agent can observe about the world at a given moment. |
-| **Action (A)** | The set of things the agent can do at each step. |
-| **Reward (R)** | A scalar signal the agent receives after taking an action. The agent's goal is to maximize the sum of rewards over time. |
-| **Transition function (T)** | The rules that govern how the world changes in response to an action. In our case, this is the SEIR-SEI ODE simulator. |
-| **Discount factor (γ)** | A number between 0 and 1 that weights future rewards less than immediate ones. γ = 0.99 means a reward 100 steps away is worth 0.99^100 ≈ 0.37 of a reward now. |
+**Note on γ:** Discount factor is a real design decision, not a default. A low γ makes the agent myopic — it will bias toward fogging because fogging's reward arrives fastest. A high γ (close to 1) is required for the agent to value the slow-payoff interventions correctly.
 
 ### 3.2 The dengue problem as an MDP
 
 #### State
 
-The state is everything the agent observes at the start of each decision timestep. In the dengue setting this includes:
+Reported case counts by area for the past N weeks, current week, rainfall index (current and forecast), remaining budget, and recent intervention history.
 
-- Reported case counts by area for the past N weeks *(note: observed, not true — see section 3.4 on partial observability).*
-- Current week of the year (proxy for season and expected rainfall-driven mosquito dynamics).
-- Rainfall index for the current and forecast week.
-- Remaining budget for the season.
-- What interventions were deployed in recent weeks and where (the agent needs to know, for example, that it fogged Barangay A last week so it can account for the rebound effect).
-
-> **⚠ OPEN — State representation:** Should the state include raw ODE compartment values (S, E, I, R counts) or only observable proxies (reported cases, rainfall)? The former is full observability and is unrealistic. The latter is partial observability and is the real problem. See section 3.4.
+> **Note on observability:** The state as observed is not the true state. ~75% of dengue cases are unreported, with a 1–2 week lag. The agent never sees true I counts — it sees a noisy, delayed, **state-correlated** fraction of them (reporting worsens during surges). This is the thesis's claimed contribution axis — see §3.4, §4.2, and `THESIS.md`.
 
 #### Action
 
-The action is the agent's deployment decision for the current week. The action space needs to encode: which intervention type, which geographic area(s), and at what intensity or budget allocation.
-
-> **⚠ OPEN — Action space structure:** There are two main choices: (1) **Discrete** — the agent selects from a fixed menu of intervention-area combinations each week. Simpler to train, less expressive. (2) **Continuous** — the agent outputs a budget allocation vector across intervention types and areas. More realistic, harder to train (requires SAC or continuous PPO). This choice affects the algorithm selection significantly.
+✓ **DECIDED — Action space: Discrete.** The agent selects from a fixed menu of intervention-area combinations each week. Simpler to train, sufficient for the PoC and baseline research phase. Continuous action space is a v2 upgrade.
 
 #### Reward
 
-**Reward** — the signal the agent receives after taking an action that tells it how well it did.
+The natural reward is cases and deaths averted relative to a no-intervention baseline. Critical challenge: this reward is delayed 3–4 weeks.
 
-In this problem the natural reward is cases and deaths averted relative to a no-intervention or fixed-schedule baseline. The critical challenge: this reward is delayed. An intervention deployed in week 3 may not produce a measurable case reduction until week 6 or 7. The agent acts now and receives feedback weeks later.
-
-> **⚠ OPEN — Reward shaping:** Should intermediate rewards be added (e.g., reward for reducing larval index counts, which are observable faster than case reduction) to help the agent learn? This is called reward shaping. The risk is introducing bias — the agent may optimize the proxy instead of the true goal. This is a known problem in RL called **reward hacking**.
+> **⚠ OPEN — Reward shaping:** Whether to add intermediate rewards (e.g., reward for reducing larval index) to help learning. Risk: reward hacking. Deferred to research phase after baseline behavior is observed.
 
 #### Transition function
 
-The transition function is the SEIR-SEI ODE simulator. The agent takes an action, the simulator steps forward by one timestep, and the new state is returned. The simulator is the environment.
-
-> **⚠ OPEN — Timestep:** What is one decision step? One week is the natural choice (aligned with how health officers plan and with the typical DOH reporting cadence). One day is more granular but may be too fine for meaningful intervention decisions. Two weeks is coarser but may match some field realities better. This choice affects the total horizon length and the severity of the delayed reward problem.
-
-> **⚠ OPEN — Simulator fidelity:** ODE (fast, analytically tractable, wrong in detail) vs agent-based model or ABM (realistic, expensive, hard to train on). Strong prior recommendation from the literature: train the RL agent on an ODE simulator and validate the trained policy on an ABM or real data. Do not train on an ABM — it is too slow.
+The SEIR-SEI ODE simulator. One call to `step()` advances the simulation by one week.
 
 ### 3.3 Constrained MDP (CMDP)
 
-**Constrained MDP (CMDP)** — an MDP with one or more hard constraints that the agent must satisfy in addition to maximizing reward.
+The budget is a hard limit, not a preference. Standard RL folds cost into reward as a penalty — the agent can overspend if it thinks the reward justifies it. A real health officer cannot.
 
-Standard RL folds cost into the reward as a penalty — the agent can overspend if it calculates that the reward justifies it. A real health officer cannot do this. The budget is a hard limit, not a preference. This transforms the problem from an MDP into a CMDP.
+> **⚠ OPEN — Constraint formulation:** Start with Lagrangian PPO for the PoC; compare CPO in the research phase. Watching a naive penalty fail to respect the budget is part of the learning process.
 
-The formal CMDP adds a cost function C(s, a) and a budget threshold B. The agent must maximize expected cumulative reward subject to the constraint that expected cumulative cost does not exceed B.
+> **Honest flag.** On a single observable scalar *spend* budget, the hard constraint is largely satisfiable by action masking, and the Lagrangian exercise is partly pedagogical. The genuinely interesting residue — *timing* of spend against the seasonal curve — is a planning problem, not a constraint-satisfaction one. Budget is the **weakest** of the candidate research axes; see `THESIS.md` §10 (deferred axes).
 
-> **⚠ OPEN — Constraint formulation:** Three main approaches: (1) **Lagrangian relaxation** — add a penalty term λ·C to the reward and tune λ. Simple to implement, unstable to train. (2) **Constrained Policy Optimization (CPO)** — guarantees constraint satisfaction during training but is complex to implement. (3) **Primal-dual methods** — a middle ground. For a thesis, Lagrangian PPO is the most tractable starting point, with CPO as a comparison.
+### 3.4 Partial observability (POMDP) — the claimed contribution axis
 
-### 3.4 Partial observability (POMDP)
+Standard epidemic RL assumes the agent sees true compartment values. This is unrealistic. In the Philippines, ~1 in 4 dengue cases is reported, and reporting **worsens during outbreaks** — the corruption is *correlated with the hidden state*.
 
-**Partially Observable MDP (POMDP)** — an MDP where the agent cannot directly observe the true state of the world — only a noisy, incomplete observation derived from the true state.
+✓ **DECIDED — Partial observability is the thesis's claimed contribution axis** (Decision #16). The other hard axes remain in the environment for fidelity but are not claimed.
 
-Standard epidemic RL assumes the agent can see the true compartment values. This is unrealistic. In the Philippines, approximately 1 in 4 dengue cases is reported to surveillance. The agent never sees the true I count — it sees a fraction of it, with a delay of 1–2 weeks.
+⚠ **OPEN — the method is held open** (Decision #15). The world model is the *leading candidate*, to be tested against a strong recurrent (memory) baseline. The contribution is **not** the method — it is the *characterization* of when inference beats memory as a function of observation structure. Full framing in `THESIS.md` §03–§09; methods-novelty basis in `GAP_METHODS.md`.
 
-This partial observability has practical consequences: the agent must act on a signal that underestimates the true severity of the epidemic. A policy trained on full observability will perform worse when deployed on real data than its simulator metrics suggest.
+**The three-agent apparatus (research phase):**
+1. **Full observability** — the ceiling. What perfect information buys.
+2. **Strong recurrent (memory) policy** — the baseline. Must be tuned to the Ni et al. (2022) standard; beating a weak LSTM proves nothing.
+3. **Inference policy** — the contender (world model or simpler belief method; *candidate, not committed*).
 
-> **⚠ OPEN — How to handle partial observability:** Three options: (1) Ignore it in the first version — train with full observability as a baseline, note the gap as a limitation. (2) Add observation noise to the simulator to approximate underreporting — train with a recurrent policy (LSTM or GRU) that integrates observations over time. (3) Full POMDP formulation with explicit belief-state tracking. Option 1 is the fastest path; option 2 is the most publishable for a thesis; option 3 is the most technically ambitious.
+The finding being hunted: under **state-correlated** corruption (at matched magnitude), the memory baseline fails systematically and inference recovers the lost performance — whereas under matched-magnitude **state-independent** corruption it does not. See `THESIS.md` §08 for the experimental design.
 
 ---
 
-## 04 The three hard things
-
-This section explains why the dengue intervention RL problem is not just "RL applied to a new domain." Each difficulty below is individually studied in the RL literature. The combination of all three, in a vector-borne disease setting, has never been tackled. That combination is the research contribution.
+## 04 The hard things
 
 ### 4.1 Delayed reward and credit assignment
 
-**Delayed reward** — a setting where the reward signal arrives many timesteps after the action that caused it.
+When cases drop three weeks after fogging, the agent can't easily tell which decision caused it — compounded by multiple interventions on different horizons. *Studied as a candidate axis but **deferred** (see `THESIS.md` §10); the short 26-week horizon may make it mild.* Relevant methods: RUDDER, HER, reward redistribution, DreamerV3 — none applied to epidemic control.
 
-**Credit assignment problem** — the challenge of determining which past action in a trajectory deserves credit (or blame) for a reward received later.
+### 4.2 Partial observability — *the claimed axis*
 
-In the dengue setting, the agent fogs Barangay A in week 3. Case counts begin dropping in week 6. Three weeks of other decisions sit between the action and the outcome. Standard RL methods (PPO, SAC) backpropagate credit using Bellman equations, which work well when reward is dense but struggle when reward is sparse and delayed.
-
-The credit assignment problem is compounded by the fact that multiple interventions are deployed simultaneously across multiple areas. Even if the agent can detect that cases dropped in week 6, it cannot easily attribute that drop to the fogging in week 3, the larviciding in week 2, or the community campaign in week 1.
-
-**Relevant methods:** RUDDER (return decomposition), Hindsight Experience Replay (HER), reward redistribution, and learned world models (DreamerV3). None of these have been applied to epidemic control. This is an open experimental question for the thesis.
-
-### 4.2 Partial observability
-
-Addressed formally in section 3.4. The practical consequence: the agent's state is always an underestimate of the true epidemic state. Roughly 75% of dengue cases are never reported. Reporting also has a lag of 1–2 weeks. The agent is always flying partially blind.
-
-This matters beyond just performance degradation. It affects trust: a health officer who knows the data is incomplete will be more skeptical of recommendations that appear to rely on data they know is wrong. The PoC must communicate uncertainty explicitly.
+~75% of dengue cases unreported; 1–2 week lag; the underreporting is **state-correlated** (worse in surges). The agent flies partially blind, and worse precisely when stakes are highest. ✓ The thesis's claimed contribution (§3.4). Method held open, world model leading candidate. See `THESIS.md`.
 
 ### 4.3 Hard budget constraints
 
-Addressed formally in section 3.3. The key distinction to hold: in most RL, cost is a soft penalty folded into the reward function. The agent trades off between reward and cost dynamically. In the health officer's world, the budget is a hard constraint — there is no amount of cases-averted reward that justifies overspending the monthly allocation. The agent must learn to operate within the constraint at all times, not just on average.
+A hard limit, not a preference; CMDP formulation in the PoC. The **weakest** candidate axis (see §3.3 flag). Deferred as a contribution.
 
-Constrained RL is a well-developed subfield (CMDP theory dates to Altman 1999), but it has rarely been applied with the combination of long-horizon planning and delayed reward that characterizes the dengue problem.
+### 4.4 The combination is the *landscape*, not the *claim*
 
-### 4.4 Why the combination is the gap
-
-| Problem | Studied in isolation? | Studied in epidemic RL? |
+| Problem | Studied in epidemic RL? | Notes |
 |---|---|---|
-| Delayed reward | Yes — extensively | No — all epidemic RL uses dense rewards |
-| Partial observability | Yes — POMDP literature | No — all epidemic RL assumes full observability |
-| Hard budget constraints | Yes — CMDP literature | Partially — only for COVID resource allocation |
-| Vector-borne SEIR-SEI dynamics | Yes — epidemiology | No — all epidemic RL models respiratory disease |
-| All four together | No | No |
+| Delayed reward | No — all epidemic RL uses dense rewards | Malaria RL used true ODE state, bypassing real delay |
+| Partial observability | No — all epidemic RL assumes full observability | A convenience assumption inherited from COVID's multi-signal setting |
+| Hard budget constraints | Partially — COVID resource allocation only | |
+| Vector-borne SEIR-SEI dynamics | No — all epidemic RL models respiratory disease | |
 
-The thesis does not need to solve all four simultaneously in full generality. A clean empirical study of how they interact — which combinations degrade performance most, which methods address which problems — is itself a publishable contribution that generalizes beyond dengue.
+These four together describe the officer's real problem — the **landscape** that motivates the project. They are **not** the claim. Earlier framing treated "all four together" as the contribution; that has been narrowed (Decision #16). The thesis stakes **one** axis — partial observability — and within it the sharp, plausibly-novel property of **state-correlated observation corruption**. Trying to claim all four at once would confound attribution and is infeasible solo. See `THESIS.md` §03–§04 and `GAP_METHODS.md`.
+
+> **Why narrowing strengthens it.** A narrow, real, precisely-stated gap survives review; a broad "we did everything" claim does not. The contribution is also two-part: the **open dengue environment** (a community artifact) and the **observation-structure characterization** (the method finding). They de-risk each other.
 
 ---
 
@@ -223,158 +204,133 @@ The thesis does not need to solve all four simultaneously in full generality. A 
 
 ### 5.1 What this project is
 
-- A reinforcement learning research project using dengue fever intervention sequencing in the Philippines as the primary application domain.
-- A CS thesis producing both a methodological contribution (how to train RL agents under delayed reward, partial observability, and hard budget constraints) and an applied demonstration (a working tool for health officers).
-- A proof-of-concept decision-support tool — not an autonomous system. The health officer remains in the loop. The agent recommends; the officer decides.
-- A project grounded in real Philippine context: DOH/PIDSR surveillance data, Calabarzon epidemiological parameters, and the actual resource constraints of LGU-level public health.
-- A stepping stone toward the AlphaFold model of applied RL research: problem-first, method-as-necessary, contribution-as-discovery.
+- A reinforcement learning research project using dengue intervention sequencing in the Philippines as the application domain.
+- A CS thesis producing **two contributions**: an open, RL-ready dengue POMDP environment, and a characterization of when latent-state inference beats observation memory under state-correlated corruption.
+- A proof-of-concept decision-support tool — not autonomous. The health officer stays in the loop.
+- Grounded in real Philippine context, parameterized from published Philippine epidemiological literature.
 
 ### 5.2 What this project is not
 
-- Not an autonomous public health decision system. No recommendations are deployed without human review.
-- Not a dengue forecasting tool. Forecasting predicts risk. This project decides what to do about risk.
-- Not a national-scale simulation. The PoC targets a manageable geographic scope (see open design questions below).
-- Not a proof of real-world efficacy. The thesis validates against historical data and simulator robustness tests — not a randomized controlled trial.
-- Not a pure theory paper. The theoretical contribution is grounded in and demonstrated through the dengue domain.
-- Not a finished product ready for DOH deployment. It is a research prototype with an interface demonstrating what a production tool could look like.
+- Not an autonomous public health decision system.
+- Not a dengue forecasting tool.
+- Not a finished product ready for DOH deployment (prospective validation, live PIDSR pipeline, per-municipality recalibration, human-factors research, certification, and a regulatory pathway are all out of scope).
+- Not a proof of real-world efficacy. Validation is against historical data and simulator robustness, not deployment.
+- Not a pure theory paper.
 
-### 5.3 Open design questions on scope
+### 5.3 Design decisions — resolved
 
-> **⚠ OPEN — Geographic scope:** What is the unit of geographic resolution? Options: (a) Single municipality or city (e.g., Dasmariñas, Cavite) — simplest, most tractable, best for a thesis PoC. (b) Province-level (e.g., all of Cavite) — requires spatial structure in the MDP, possibly multi-agent formulation. (c) Region-level (Calabarzon) — significantly increases complexity, may require hierarchical RL. Recommendation: start with a single municipality and validate thoroughly before expanding.
+| Question | Decision | Rationale / pointer |
+|---|---|---|
+| Geographic scope | Single municipality — Dasmariñas, Cavite | No spatial/multi-agent complexity. Most tractable PoC. (#02) |
+| Timestep | 1 week | Matches DOH reporting cadence. (#03) |
+| Season length | 26 weeks | Shorter horizon = more tractable credit assignment. (#04) |
+| Action space | Discrete | Trains reliably with PPO. (#05) |
+| Interventions | Fogging + larviciding + LSR | Clearest SEIR-SEI mappings. (#06) |
+| Observability v1 | Full (baseline only) | Need a clean full-obs baseline before measuring partial-obs cost. (#08) |
+| Stochasticity | Deterministic train, stochastic eval | Fast reproducible training; robustness tested separately. (#09) |
+| Budget | Single scalar | Line-item is a v2 upgrade. (#07) |
+| **PoC vs thesis** | **Two regimes: PoC frozen watered-down; thesis re-hardens the full problem** | **Build first, then prove. (#11, #14)** |
+| **Contribution axis** | **Partial observability (claimed); others present-not-claimed** | **Richest, product-safe, sharp novel property. (#16)** |
+| **Contribution structure** | **Two contributions: open environment + inference-vs-memory characterization** | **De-risk each other. (#16)** |
+| **Partial-obs method** | **Held open; world model = leading candidate, not commitment** | **Problem-first; supersedes the earlier world-model commitment. (#15)** |
+| **Methods framing** | **Narrow: "observation-state coupling as the governing knob"** | **Novelty audit passed; matched-magnitude design mandated. (#17)** |
 
-> **⚠ OPEN — Timestep resolution:** One week is the natural default. Daily is more granular but increases the horizon length and worsens the delayed reward problem. Bi-weekly may better match field reporting. This should be decided in consultation with what the Philippine DOH/PIDSR data actually provides.
+*Full rationale for every row is in `DECISIONS.md`. The research-framing decisions (#14–#17) are elaborated in `THESIS.md`.*
 
-> **⚠ OPEN — Season length:** How many timesteps is one "season"? Dengue in the Philippines peaks June–October (rainy season). A 52-week annual horizon captures full seasonality but is a long RL horizon. A 26-week season (April–September) may be more tractable. This is a training and curriculum design question as much as an epidemiological one.
+### 5.4 Design decisions — still open
 
-> **⚠ OPEN — Number of interventions in the action space:** Starting with 2–3 intervention types (fogging, larviciding, LSR) is more tractable than including vaccines and Wolbachia release immediately. The latter two have different time horizons, data requirements, and policy implications. A clean thesis could focus on vector-control interventions only and leave biological control as future work.
-
-> **⚠ OPEN — Budget granularity:** Is the budget a single scalar (total pesos per month) or a multi-category constraint (personnel budget, supplies budget, logistics budget separately)? The scalar version is more tractable and defensible as an initial simplification, but a real health officer manages line-item budgets.
+| Question | Status |
+|---|---|
+| Final research-question wording | ⚠ Target drafted (`THESIS.md` §05); locked only after the existence experiment |
+| Synthetic-POMDP generality commitment | ⚠ Deferred until the effect is confirmed real (`THESIS.md` §11) |
+| Inference method (world model vs simpler belief method) | ⚠ Open — candidate is the world model (#15) |
+| Credit assignment method | ⚠ Open — deferred axis |
+| Constraint formulation (Lagrangian vs CPO) | ⚠ Start Lagrangian, compare CPO |
+| Reward shaping | ⚠ Observed after baseline training |
+| Explanation method | ⚠ v2, after agent works |
 
 ---
 
 ## 06 The software product
 
-### 6.1 What the health officer interacts with
+The product is **Aegis** — a web tool for a barangay/municipal health officer with no data-science background, designed so an interaction takes under five minutes and yields an actionable result. Workflow: select municipality → enter week and budget → enter case data (rainfall auto-fetched) → generate plan → receive an intervention calendar, choropleth map, projected cases averted, and a plain-language rationale.
 
-The product is **Aegis** — a web application (browser-based, no installation required, shareable via URL). It is designed for a barangay or municipal health officer with no data science background. The interface must be simple enough that the interaction takes under five minutes and produces a result the officer can act on immediately.
-
-**The health officer's workflow:**
-
-1. Open the web app on any device (laptop, tablet, mobile).
-2. Select their region or municipality from a dropdown (pre-loaded with Philippine administrative boundaries).
-3. Input the current week of the year and available budget for the season.
-4. The system pulls the latest available case data for their area (from DOH/PIDSR or manually entered).
-5. Click "Generate plan."
-6. Receive a recommended intervention calendar: which intervention to deploy, in which barangay, in which week, for the next N weeks.
-7. See the projected cases averted relative to a fixed-schedule baseline, with a confidence range.
-8. For each recommendation, see a plain-language explanation of why — which factor drove the recommendation (e.g., "High rainfall forecast for weeks 4–6 suggests elevated larval population; LSR now will reduce adult mosquito emergence before peak transmission").
-9. Download the plan as a printable PDF or share the URL with a supervisor.
-
-**Explainability requirement:** The officer must be able to understand why each recommendation was made. This is not optional — it is a prerequisite for trust. The agent's output must be accompanied by a readable summary of the top contributing factors. This constrains the method: highly opaque models without an explanation layer are insufficient.
-
-### 6.2 The data IPO model
-
-#### Inputs
-
-| Input | Source | Notes |
-|---|---|---|
-| Weekly dengue case counts by area | DOH PIDSR / HDX / manual entry | Aggregated at province or municipality level. Approximately 1 in 4 true cases reported. 1–2 week lag. |
-| Rainfall data | PAGASA forecast / historical | Weekly rainfall index. Strong driver of *Aedes* breeding cycle. |
-| Temperature data | PAGASA | Affects mosquito development rate and lifespan. |
-| Available budget | Health officer input | Total pesos available for the season or current month. |
-| Previous interventions deployed | Health officer input or system memory | What was deployed in the past N weeks and where. Needed for rebound effect modeling. |
-| Administrative boundaries | PSA shapefiles / PhilGIS | Barangay or municipality polygons for spatial structure. |
-| Population denominators | PSA 2020 census | Required for incidence rates (cases per 100,000). |
-
-#### Process — the RL engine (see section 07 for full detail)
-
-- The input data is assembled into the current state vector for the MDP.
-- The trained RL policy takes the state and outputs an action (intervention allocation).
-- The policy is evaluated for the next N timesteps via rollout through the SEIR-SEI simulator.
-- The output is a multi-week intervention calendar with projected case trajectories.
-- The explanation module reads the policy's attention or gradient signal to generate the plain-language rationale.
-
-#### Outputs
-
-| Output | Format | For whom |
-|---|---|---|
-| Recommended intervention calendar | Week-by-week table: intervention type, area, intensity | Health officer — primary output |
-| Projected cases averted | Number + confidence range vs baseline | Health officer — for justification to supervisors |
-| Plain-language rationale per recommendation | 1–2 sentences per week's recommendation | Health officer — for trust and transparency |
-| Uncertainty flags | Highlighted weeks where confidence is low | Health officer — for caution |
-| Downloadable PDF plan | Printable A4 summary | For filing, sharing, supervisor approval |
-| Model assumptions summary | Footnote / expandable section | For any technically-minded reviewer |
+The product is built **agent-agnostic** behind a `/recommend` contract, so a hardened observability agent later is a drop-in — no redesign. Full product spec, screens, architecture, and data model live in `PRODUCT.md`. Explainability remains a trust prerequisite (v2).
 
 ---
 
 ## 07 The RL engine
 
-This section describes the core technical component of the system — the trained RL agent that generates intervention recommendations. It is written as a semantic reference: what each component is, what it does, and how it connects to the others.
-
 ### 7.1 System overview
-
-The RL engine has three phases: training, evaluation, and deployment. These are distinct and should be kept conceptually separate.
 
 | Phase | What happens |
 |---|---|
-| **Training** | The agent interacts with the SEIR-SEI ODE simulator thousands of times, learning a policy that maximizes cases averted subject to the budget constraint. This happens offline, before the product is deployed. |
-| **Evaluation** | The trained policy is tested on held-out historical seasons and on simulator scenarios with perturbed parameters to assess robustness. The output is a set of performance metrics. |
-| **Deployment** | The trained policy is frozen and served via the web application. It takes real observed data as input and outputs recommendations. It does not continue learning from deployment interactions (offline RL). |
+| **Training** | Agent interacts with the SEIR-SEI ODE simulator, learning a policy that maximizes cases averted subject to the budget constraint. Offline. |
+| **Evaluation** | Trained policy tested on held-out historical seasons and perturbed simulator scenarios. |
+| **Deployment** | Policy frozen, served via the web app. No continued learning from deployment (offline RL). |
 
-### 7.2 The simulator (environment)
+### 7.2 The simulator (environment) — *a claimed contribution*
 
-**Environment** — in RL, the world that the agent interacts with. The environment receives actions and returns new states and rewards.
+A SEIR-SEI ODE simulator as an OpenAI Gymnasium-compatible environment (`reset()`, `step()`, `observation_space`, `action_space`). This is **contribution #1** — an open, RL-ready dengue POMDP, the instrument that does not yet exist for dengue the way OpenMalaria did for malaria.
 
-The environment is a SEIR-SEI ODE simulator implemented as an OpenAI Gymnasium-compatible environment. This means it has a standard interface (`reset()`, `step()`, `observation_space`, `action_space`) that any standard RL library (Stable-Baselines3, CleanRL) can interact with.
+- **ODE solver:** `scipy.integrate.solve_ivp`. One `step()` = one week.
+- **Parameter calibration:** Miksch et al. (2016/2019) Cebu City parameters, with documented uncertainty ranges. *Honest framing:* calibration to Dasmariñas is ill-posed (underreporting makes parameters unidentifiable), so the simulator is "literature-grounded with documented uncertainty," not "calibrated."
+- **Seasonal forcing:** mosquito birth rate as a function of weekly rainfall.
+- **Intervention effects:** time-varying ODE parameter perturbations (fogging drops Im briefly; larviciding cuts recruitment ~2 weeks; LSR lowers carrying capacity persistently).
+- **Observation model (the contribution's experimental variable):** configurable corruption with a **state-correlation knob** — from state-independent (homoscedastic, fixed reporting fraction) to state-correlated (reporting that worsens with the true state), at controllable magnitude. v1 baseline uses full observability; the research phase sweeps this knob (see `THESIS.md` §08).
 
-- **ODE solver:** The simulator steps forward by integrating the SEIR-SEI differential equations numerically (e.g., using `scipy.integrate.odeint` or a fixed Euler step). One call to `step()` advances the simulation by one timestep (tentatively one week).
-- **Parameter calibration:** The ODE parameters (transmission rates, incubation periods, mosquito lifespan, seasonal forcing) are calibrated to Philippine dengue data. Starting point: Miksch et al. (2016) Cebu City ABM parameters, adjusted for Calabarzon using DOH/PIDSR case data.
-- **Seasonal forcing:** The mosquito birth rate is a function of rainfall — parameterized using historical PAGASA weekly rainfall data for the target region. This drives the annual epidemic cycle.
-- **Intervention effects:** Each intervention type modifies a specific ODE parameter for a specified duration and magnitude. Fogging reduces Im by a factor α for τ days. Larviciding reduces the larval recruitment rate by β for τ days. These are modeled as time-varying parameter perturbations.
-- **Observation function:** In the partial observability setting, the simulator does not return true compartment values. It returns a noisy, lagged observation that simulates the DOH reporting process: true I values are multiplied by a reporting fraction r ≈ 0.25 and delayed by 1–2 weeks.
-
-> **⚠ OPEN — Stochasticity:** Should the ODE be deterministic (same parameters → same trajectory every time) or stochastic (demographic noise, random events)? Deterministic is faster and easier to train on. Stochastic is more realistic and tests robustness. A reasonable path: train on deterministic, evaluate on stochastic.
+> **⚠ OPEN — Stochasticity:** deterministic for training; stochastic variants for robustness evaluation.
 
 ### 7.3 The policy network
 
-**Policy** — a function that maps states to actions (or to probability distributions over actions). The RL agent's policy is what is learned during training and what is used at deployment time.
-
-The policy network is a neural network that takes the current state vector as input and outputs either a probability distribution over discrete actions or a mean and variance over continuous actions.
-
-- **Architecture:** A multi-layer perceptron (MLP) with 2–3 hidden layers of 256 units each is the standard starting point for vector state spaces. If partial observability is included and the agent needs to remember past observations, a recurrent architecture (LSTM or GRU) is used instead — the hidden state acts as the agent's memory.
-- **Input:** The state vector (case counts, rainfall, budget remaining, week of year, recent intervention history). Normalized to zero mean and unit variance before input.
-- **Output (discrete):** A softmax distribution over all intervention-area-intensity combinations. The agent samples during training (exploration) and takes the argmax at deployment (exploitation).
-- **Output (continuous):** A mean vector and diagonal covariance matrix over budget allocation fractions. Sampled from a Gaussian during training; mean used at deployment.
+- **Architecture v1:** MLP, 2–3 hidden layers of 256 units (full-obs baseline).
+- **Memory baseline:** recurrent policy (LSTM/GRU), tuned to the Ni et al. (2022) standard.
+- **Inference variant (candidate):** policy operates on an inferred latent state. The world model is the leading candidate (§07b) — *not committed*.
 
 ### 7.4 The training algorithm
 
-**Proximal Policy Optimization (PPO)** — a policy gradient RL algorithm that updates the policy in small, stable steps by clipping the gradient update. It is the most widely used algorithm for continuous control tasks and is the recommended starting point for this project.
+**Primary:** PPO via Stable-Baselines3 — stable, handles discrete actions, directly comparable to Mai et al. (IJCAI 2023). **For the CMDP:** Lagrangian PPO. **Memory baseline:** RecurrentPPO (sb3-contrib).
 
-PPO is chosen as the primary algorithm for three reasons: it is stable to train, it works for both discrete and continuous action spaces, it has strong open-source implementations (Stable-Baselines3, CleanRL), and it is the algorithm used by Mai et al. (IJCAI 2023) — the closest prior work — making direct comparison easier.
-
-**Soft Actor-Critic (SAC)** — an off-policy actor-critic algorithm that maximizes both reward and entropy (randomness) in the policy. More sample-efficient than PPO but more complex to tune. Used as a comparison baseline.
-
-**For the constrained MDP:** Lagrangian PPO extends PPO by adding a Lagrange multiplier λ that penalizes budget constraint violations. The multiplier is updated each training step via gradient ascent — if constraints are violated, λ increases, making the penalty larger.
-
-> **⚠ OPEN — Credit assignment method:** Which method (if any) is added to handle delayed reward? Options: (1) Standard PPO with reward discounting — simplest, may be sufficient if γ is tuned well. (2) Reward redistribution (RUDDER) — decomposes the return across the trajectory to redistribute credit. (3) Hindsight Experience Replay (HER) — relabels failed trajectories as successes for alternative goals. The choice here is a primary experimental variable of the thesis.
+> **⚠ OPEN — Credit assignment method:** deferred axis; decided only if the research phase reaches it.
 
 ### 7.5 The reward function
-
-The reward at each timestep is (tentatively) the number of new dengue cases prevented relative to the no-intervention counterfactual, minus an intervention cost term:
 
 ```
 R(t) = [cases_no_intervention(t) − cases_with_intervention(t)] − cost_weight × intervention_cost(t)
 ```
 
-The delayed nature of this reward is the central challenge: `cases_with_intervention(t)` reflects the consequence of actions taken 2–4 weeks prior, not the current action.
-
-> **⚠ OPEN — Dense vs sparse reward:** The above reward is computed every timestep, making it technically dense. But because the reward at step t reflects actions from steps t-3 to t-1, it is effectively sparse from the credit assignment perspective. Whether to add truly intermediate rewards (e.g., a reward for reducing larval count) is an open design question with risk of reward hacking.
+The counterfactual `cases_no_intervention(t)` is the fixed no-intervention trajectory from season start (specified to avoid an ambiguous per-step fork). Delayed: `cases_with_intervention(t)` reflects actions 2–4 weeks prior.
 
 ### 7.6 The explanation module
 
-The explanation module is a post-hoc layer that reads the trained policy's behavior and generates the plain-language rationale shown to the health officer. This is not part of the RL training loop — it is applied after the policy has produced its recommendation.
+Post-hoc layer applied after the policy produces its recommendation. ⚠ OPEN method (SHAP / attention / counterfactual / rule extraction); v2, after the agent works.
 
-> **⚠ OPEN — Explanation method:** Options include: (1) SHAP values applied to the policy network inputs — shows which state features most influenced the action. (2) Attention weights if a transformer-based policy is used. (3) Counterfactual explanation — "If rainfall were lower, the agent would have recommended X instead of Y." (4) Simple rule extraction — fit a decision tree to the policy's input-output pairs and display the tree's logic. Method 4 is the most interpretable to a non-technical officer; method 1 is most standard in ML explainability literature.
+---
+
+## 07b The world model component — *a candidate method, not the contribution*
+
+*This section was originally written as the thesis's primary contribution. Following Decision #15 it is reframed: the world model is the **leading candidate method** for the inference arm of the contribution axis (§3.4), to be evaluated against a strong recurrent baseline. The **contribution is the characterization** (`THESIS.md`), not the choice of world model.*
+
+### Why a world model is the leading candidate (memory vs inference)
+
+A recurrent (memory) policy handles partial observability *reactively*: it remembers past noisy observations and reacts. It stays in "shadow space."
+
+A world model handles it *actively*: it learns the dynamics — including how the true state maps to what surveillance reports — and asks "what true state is most consistent with this observation?" It infers the hidden state rather than just integrating the noisy signal. **Memory vs inference** is the central contest of the thesis.
+
+The hypothesis (see `THESIS.md` §06): inference's advantage is largest and most reliable when the corruption is **state-correlated**, because that is where memory must learn the hardest mapping from the sparsest high-stakes data. Whether explicit inference still beats a strong recurrent baseline there is a genuinely open empirical question — which is why the method is held open, not assumed.
+
+### Why not a full POMDP belief filter
+
+Explicit belief-state tracking over a continuous SEIR-SEI state is analytically intractable (particle filters / variational inference are separate research areas). A learned latent state is a tractable approximation. Sufficient; not maximally precise.
+
+### The world-model taxonomy (two distinct senses)
+
+- **Type 1 — RL sense (Aegis uses this):** a learned network mimicking environment dynamics for inference and efficiency. Example: DreamerV3.
+- **Type 2 — cognitive-science sense (adviser's research):** whether a large pretrained model has emergent physical understanding of reality. Distinct from Type 1.
+
+### Reference
+
+DreamerV3 (Hafner et al., 2023). More complex than SB3 PPO; requires the deep-learning/transformer foundations being built in parallel. Implementation is a research-phase task and is **contingent on the existence experiment** showing the heavier machinery is warranted. The experimental design (three agents, matched-magnitude knob) lives in `THESIS.md` §08.
 
 ---
 
@@ -382,175 +338,156 @@ The explanation module is a post-hoc layer that reads the trained policy's behav
 
 ### 8.1 Tier 1 — RL for epidemic control (COVID / NPI focused)
 
-The epidemic RL literature is dominated by COVID-19 non-pharmaceutical interventions — lockdowns, school closures, vaccination timing. These papers establish the methodological baseline that this thesis extends.
-
 | Paper | What they did | What they left open |
 |---|---|---|
-| **Mai et al., IJCAI 2023** (arXiv:2301.12802) | Multi-intervention MDP over EpiPolicy simulator. PPO beats SAC on 6 environments. Dense reward, full observability, cost-in-reward (no hard budget constraint). **The closest prior work.** | No vector-borne disease. No SEIR-SEI host-vector model. No hard budget constraint. No partial observability. Dense rewards throughout. |
-| **Libin et al., ECML-PKDD 2020** | PPO over 379-patch influenza meta-population (Great Britain). School closures as discrete actions. Multi-region structure. | Single intervention type. Influenza, not arbovirus. No budget constraint. |
-| **Colas et al., 2020 (EpidemiOptim)** | OpenAI Gym SEIR COVID model. DQN and NSGA-II. On/off lockdown trading death toll vs economic recession. | Single binary action. Dense reward. Full observability. |
-| **Bastani et al., Nature 2021 (Eva)** | Deployed RL for COVID border testing in Greece. Bandit formulation. Real-world validated — identified 1.85× more cases than random surveillance. | Bandit, not sequential MDP. Testing allocation only. |
-| **Peng & Perrault, arXiv 2025** | Constrained RMAB for multi-cluster outbreak control. Hierarchical Lagrangian RL. Beats baselines by 20–30%. Closest CMDP public health RL. | COVID only. Not vector-borne. No delayed reward treatment. |
+| **Mai et al., IJCAI 2023** (arXiv:2301.12802) | Multi-intervention MDP over EpiPolicy. PPO beats SAC. Dense reward, full obs, cost-in-reward. **Closest prior work; baseline to replicate.** | No vector-borne disease. No SEIR-SEI. No hard budget. No partial obs. Dense rewards. |
+| **Libin et al., ECML-PKDD 2020** | PPO over influenza meta-population; school closures. | Single intervention. No budget. |
+| **Colas et al., 2020 (EpidemiOptim)** | DQN / NSGA-II on SEIR COVID; on/off lockdown. | Single binary action. Full obs. |
+| **Bastani et al., Nature 2021 (Eva)** | Deployed RL for COVID border testing; bandit. Real-world validated. | Bandit, not sequential MDP. |
+| **Peng & Perrault, arXiv 2025** | Constrained RMAB for multi-cluster outbreak control; Lagrangian RL. | COVID only. No delayed-reward treatment. |
 
 ### 8.2 Tier 2 — RL for vector-borne diseases
 
-Vector-borne RL exists almost entirely for malaria, driven by IBM Research-Africa. No Aedes-borne disease (dengue, Zika, chikungunya, West Nile) has been addressed with RL.
-
 | Paper | What they did | What they left open |
 |---|---|---|
-| **Bent et al., AAAI 2018; Makondo et al., arXiv 2021** | Malaria intervention selection as bandit/MDP. Interventions: ITN bed nets and IRS spraying. Key finding: simple UCB algorithms often beat deep RL on the malaria Gym environment. | Malaria, not dengue. Simplified simulator. Bandits, not deep RL. No budget constraint. No partial observability. |
-| **KDD Cup 2019 (IBM Research-Africa)** | Malaria policy learning competition. 5-year horizon. Key simplification: state transitions are NOT action-dependent — weakens the MDP validity. | Malaria only. Simplified non-MDP structure. No deep RL required. |
-| **SIT control (arXiv:2310.13072)** | RL applied to sterile insect technique ODE for mosquito population control. No disease transmission modeled. | No disease — only mosquito population dynamics. Control theory demonstration only. |
+| **Bent et al., AAAI 2018; Makondo et al., 2021** | Malaria intervention selection as bandit/MDP; simple UCB often beats deep RL. | Malaria. Simplified sim. **Used true ODE state as reward, bypassing real delay.** |
+| **KDD Cup 2019 (IBM Research-Africa)** | Malaria policy learning, 5-year horizon. **State transitions not action-dependent — weakens MDP validity.** | Malaria. Not a true sequential problem. |
+| **SIT control (arXiv:2310.13072)** | RL for sterile insect technique ODE; no disease transmission. | Control-theory demo only. |
 
 ### 8.3 Tier 3 — Dengue and RL
 
-**Finding: there are no published papers combining dengue with reinforcement learning for intervention sequencing.**
-
-This is a confirmed negative result, not an assumption. The dengue control literature uses classical optimal control (Pontryagin maximum principle), agent-based simulation with hand-crafted fixed strategies, or ML forecasting. None of these involve a learning agent making sequential decisions.
+**Finding: zero published papers combining dengue with RL for intervention sequencing** (systematic search, June 2026 — see `GAP.md`).
 
 | Paper type | Representative works | Why it is not RL |
 |---|---|---|
-| Classical optimal control | Rodrigues et al. 2013; Saha & Samanta 2023; Rawson et al. 2020 | Pontryagin maximum principle. Solves for optimal time-varying controls analytically. Single trajectory, not policy learning. |
-| Budget-constrained optimization (non-RL) | BMC Public Health 2021 (Thailand) | Mathematical optimization (LP) over a dengue ODE. Closest prior art on budget constraint — but not RL. |
-| Agent-based simulation | Miksch et al. 2016/2019 (Cebu City); Pascoe et al. 2024 (Dar es Salaam) | Simulates outcomes of pre-specified strategies. No learning agent. |
-| Wolbachia optimization (Philippines) | Corum et al. arXiv:2601.10967 (UP Diliman) | Multi-objective mathematical optimization of Wolbachia release timing. Uses Philippine data. Not RL. **Closest Philippine prior art.** |
-| Dengue forecasting (Philippines) | medRxiv 2020; PMC3983113; PMC5905126; PMC12543447 | Supervised learning — predicts case counts. Does not decide what interventions to take. |
+| Classical optimal control | Rodrigues et al. 2013; Saha & Samanta 2023 | Pontryagin; single trajectory, not policy learning. |
+| Budget-constrained optimization | BMC Public Health 2021 (Thailand) | LP over dengue ODE; not RL. |
+| Agent-based simulation | Miksch et al. 2016/2019 (Cebu City) | No learning agent. **Primary parameter source for Aegis.** |
+| Wolbachia optimization (Philippines) | Corum et al. arXiv:2601.10967 (UP Diliman) | Multi-objective optimization, **not RL**. Closest Philippine prior art. |
+| Dengue forecasting (Philippines) | medRxiv 2020; PMC3983113; PMC5905126 | Supervised forecasting; does not decide interventions. |
 
-### 8.4 The gap table
+### 8.4 The two gaps
 
-| Combination | Status in literature | Thesis relevance |
-|---|---|---|
-| Dengue + any RL | **Empty — zero papers** | Core gap. The entire project. |
-| Vector-borne SEIR-SEI + deep RL (PPO/SAC) | Empty — malaria RL used simplified bandits | The simulator design fills this. |
-| Vector-control actions (fogging, LSR, larviciding) + RL | Empty — malaria RL only covers ITN/IRS | The action space design fills this. |
-| Hard budget constraint (CMDP) + dengue | Empty — dengue budget work is non-RL | The CMDP formulation fills this. |
-| Partial observability + epidemic RL | Empty — all epidemic RL is fully observable | The POMDP extension fills this. |
-| Delayed reward / credit assignment + epidemic RL | Empty — all epidemic RL uses dense rewards | The credit assignment experiments fill this. |
-| Philippine dengue + RL | Empty — PH work is ABM / forecasting / optimization | The Philippine calibration fills this. |
+**Domain gap (`GAP.md`):** dengue ∩ RL ∩ intervention sequencing is empty. The entire applied project sits here.
+
+**Methods gap (`GAP_METHODS.md` → `research/DSCOPDWIBMDRPOMDP.md`):** the *actual scientific claim* rests here — no deep-RL work isolates **state-correlation of the observation process** as the property governing the inference-vs-memory gap. Clean but narrow. Distinguished from classical belief-state theory (idealized), DVRL (noise *magnitude*), Malekzadeh & Plataniotis (noisy-vs-partial *task type*), and Cao et al. (distractor SNR). The strong recurrent baseline (Ni et al., ICML 2022) is the obstacle to beat; MNAR/informative-missingness statistics provide theoretical scaffolding.
+
+> ⚠ The methods audit was produced by a single agent reading mostly abstracts. Verify DVRL, Ni et al., and Malekzadeh & Plataniotis before relying on the positioning.
 
 ---
 
 ## 09 Open research questions
 
-These are the questions the thesis will attempt to answer. Ordered from most foundational to most exploratory. The first two are required for any version of the thesis. The rest can be scoped in or out.
+*This section summarizes; `THESIS.md` owns the full framing, the experimental design, and the significance plan.*
 
-### Q1 — Can a constrained RL agent outperform hand-crafted baselines on a dengue SEIR-SEI simulator? *(Required)*
+### Q1 — Can a constrained RL agent outperform hand-crafted baselines on a dengue SEIR-SEI simulator? *(Required — July PoC)*
 
-This is the baseline question. If PPO with Lagrangian budget constraints does not beat a simple rule-based policy (e.g., "fog everywhere when cases exceed threshold, stop when budget is exhausted"), the project has a problem. This must be established first.
+The PoC baseline question. If Lagrangian PPO with a hard budget does not beat a threshold-rule policy (the status quo), the premise has a problem. *Status: target for July, engineering phase.*
 
-*Baseline to beat: Mai et al.'s approach applied to a dengue environment — PPO with cost-in-reward, dense reward, full observability.*
+### Q2 (HEADLINE THESIS QUESTION) — Does the *structure* of observation corruption govern when inference beats memory? *(Claimed contribution)*
 
-### Q2 — How does delayed reward affect learning, and which credit assignment method best addresses it? *(Required)*
+Does an agent that **infers** the latent state outperform one that **remembers** observations — and is the advantage governed by whether the corruption is **state-correlated**? Three-agent comparison (full-obs ceiling / strong recurrent memory / inference), with noise *magnitude held constant* while *structure* is toggled. The gate is the existence experiment (`THESIS.md` §08).
 
-This is the core methodological question. Compare: standard PPO (discounting only) vs PPO with reward redistribution vs PPO with HER vs PPO with a learned world model. Measure: convergence speed, final policy quality, and variance across seeds.
+*Status: target wording drafted, **not locked** until the existence experiment confirms the phenomenon. Method held open; world model leading candidate.*
 
-### Q3 — How much does partial observability (underreporting) degrade policy performance?
+### Q3 — How robust is the trained policy to ODE parameter misspecification?
 
-Train a policy under full observability. Evaluate it under partial observability. Measure the performance gap. Then train a recurrent policy directly under partial observability. Is the gap recoverable?
+Train on the literature-grounded ODE; evaluate on perturbed variants. A **supporting** contribution that converts the ill-posed-calibration liability into a robustness result. *Status: research phase; pairs with Q2.*
 
-### Q4 — How robust is the trained policy to ODE parameter misspecification?
+### Q4 — Credit assignment under delayed reward *(deferred axis)*
 
-Train on a calibrated ODE. Evaluate on ODE variants with perturbed parameters (e.g., transmission rate ±30%, mosquito lifespan ±50%). Tests whether the policy has learned generalizable behavior or overfit to the specific simulator.
+Compare discounting vs RUDDER vs HER vs world-model imagination. *Status: deferred; the short horizon may make it mild.*
 
-### Q5 — Can the policy's recommendations be explained in terms a health officer finds actionable?
+### Q5 — Can recommendations be explained in terms a health officer finds actionable? *(v2)*
 
-Qualitative: show the explanation outputs to domain experts (ideally actual health officers or DOH staff) and evaluate whether they are trusted and acted upon. Quantitative: measure whether SHAP-based explanations correctly identify the features that drive the policy's decisions.
+Qualitative (domain experts) and quantitative (feature attribution). *Status: v2, after the agent works.*
+
+> **Spatial ("where")** is framed in `THESIS.md` as the second-richest axis but is **deferred** (hierarchical/multi-agent RL; would change the product). Present in the environment; not claimed.
 
 ---
 
-## 10 Reading list
+## 10 Project timeline
 
-Priority-ordered. Read in sequence. Each item includes a one-line reason for why it is there.
+### Phase 1 — Engineering PoC (Now to July)
 
-### 10.1 Foundations (read first)
+**Goal:** a working proof of concept in the watered-down regime. Not optimal, not rigorously validated — real enough to show what Aegis is becoming. **Deliverables:** SEIR-SEI Gym environment (full-obs baseline), basic PPO agent, the surface web tool, an honest demo. **Not required by July:** optimal agent, rigorous constrained RL, world model, multi-seed validation. *This is an engineering deadline, not a research deadline.* Build plan: `CURRICULUM.md`.
+
+### Phase 2 — Research (July to Submission)
+
+**Goal:** the two contributions, made rigorous.
+
+1. **The open environment** — harden the PoC simulator into a documented, RL-ready POMDP with the state-correlation observation knob (contribution #1; Datasets & Benchmarks-shaped).
+2. **The characterization** — the inference-vs-memory study (Q2), gated by the existence experiment first, then the matched-magnitude sweep on the synthetic POMDP *and* the dengue environment (generality).
+
+**Sequencing discipline:** the cheap existence experiment runs *before* committing to the world model or the synthetic-environment build. Then Q3 (robustness) as support. The PoC is the laboratory; the thesis is the analysis of what re-hardening the observability axis reveals.
+
+### Parallel study track
+
+- Karpathy Zero to Hero / nanoGPT — deep-learning and transformer foundations (prerequisite *if* the world model is chosen).
+- DreamerV3 paper and codebase — world-model preparation, as a **candidate**.
+- Sutton & Barto Ch. 1–6 — RL foundations.
+- POMDP / belief-state literature and the methods-novelty anchors (§11.3) — for the contribution framing.
+
+---
+
+## 11 Reading list
+
+### 11.1 Foundations
 
 | Resource | Why |
 |---|---|
-| Sutton & Barto, *Reinforcement Learning: An Introduction*, Chapters 1–6 | The canonical textbook. Chapters 1–3 give you MDP and Bellman equations intuitively. Chapters 4–6 cover temporal difference learning and Q-learning. Free online. |
-| OpenAI Spinning Up in Deep RL (online) | The most accessible practical introduction to deep RL. Builds from policy gradients to PPO. Includes code. Read alongside S&B. |
-| Gymnasium documentation (gymnasium.farama.org) | The standard RL environment interface. You will implement your simulator to this standard. |
-| Keeling & Rohani, *Modeling Infectious Diseases*, Chapters 1–3 (free online) | The epidemiology foundations. Chapters 1–2 give you SIR and SEIR models intuitively. Chapter 3 covers vector-borne diseases including the SEI mosquito model. |
+| Sutton & Barto, Ch. 1–3 | MDP, Bellman, value function. `incompleteideas.net/book/the-book.html` |
+| OpenAI Spinning Up, Parts 1–2 | Policy gradients and PPO. `spinningup.openai.com` |
+| Gymnasium docs | Standard RL environment interface. `gymnasium.farama.org` |
+| Keeling & Rohani, Ch. 1–3 | Epidemiology incl. vector-borne host-vector models. |
 
-### 10.2 Prior work (read before building anything)
-
-| Paper | Why |
-|---|---|
-| Mai et al., IJCAI 2023 (arXiv:2301.12802) | The backbone you extend. Understand every design choice they made before you diverge from it. |
-| Miksch et al. 2016/2019 — Cebu City dengue ABM | The only Philippine dengue simulation. Your ODE parameters should be consistent with their ABM calibration. |
-| Corum et al., arXiv:2601.10967 — Wolbachia optimization, UP Diliman | The closest Philippine dengue intervention-optimization prior art. Know what they did so you can position your work relative to it. |
-| Peng & Perrault, arXiv:2603.19397 — Constrained RMAB for outbreak control | The best CMDP-style public health RL method. Your Lagrangian PPO implementation should be informed by their approach. |
-| Altman, *Constrained Markov Decision Processes*, 1999 | The theoretical foundation for CMDP. Focus on chapters 1–3 for the Lagrangian formulation. |
-
-### 10.3 Credit assignment methods (read when designing experiments)
+### 11.2 Prior work (domain)
 
 | Paper | Why |
 |---|---|
-| Andrychowicz et al. 2017 — Hindsight Experience Replay (HER) | Core credit assignment method. Short, clear, highly cited. Understand before implementing. |
-| Arjona-Medina et al. 2019 — RUDDER: Return Decomposition for Delayed Rewards | The primary reward redistribution method. Directly addresses long-horizon credit assignment. |
-| Hafner et al. 2023 — DreamerV3 | World model approach. Trains an agent to plan in imagination. Relevant if the ODE simulator is too slow for direct RL training. |
+| Mai et al., IJCAI 2023 (arXiv:2301.12802) | Backbone to extend; PPO over EpiPolicy. |
+| Miksch et al. 2016/2019 — Cebu City | Primary parameter source. |
+| Corum et al., arXiv:2601.10967 — UP Diliman | Closest Philippine dengue-intervention prior art. |
+| Peng & Perrault, arXiv:2603.19397 | Best CMDP public-health RL; Lagrangian reference. |
+| Altman, *Constrained MDPs*, 1999 | CMDP foundation (Ch. 1–3). |
 
-### 10.4 Data sources
+### 11.3 The contribution: partial observability, inference vs memory *(verify before relying — §08.4)*
 
-| Source | What it provides |
+| Paper | Why |
 |---|---|
-| DOH Philippines PIDSR | Weekly dengue case counts by region and province. Available via DOH epidemiology bureau reports and HDX. |
-| PAGASA | Historical and forecast rainfall data. Weekly and monthly rainfall by station. Essential for seasonal forcing calibration. |
-| Philippine Statistics Authority (PSA) 2020 Census | Population denominators by barangay, municipality, and province. Required for incidence rate calculation. |
-| HDX — Humanitarian Data Exchange (data.humdata.org) | Aggregated Philippine dengue datasets. Search "Philippines dengue". |
-| PhilGIS / NAMRIA | Philippine administrative boundary shapefiles. Required for any spatial structure. |
+| Ni, Eysenbach & Salakhutdinov, ICML 2022 (arXiv:2110.05038) | The strong recurrent baseline — the bar to beat. |
+| Igl et al. (DVRL), ICML 2018 (arXiv:1806.02426) | Inference helps with noise *magnitude* — distance the claim from this. |
+| Malekzadeh & Plataniotis (arXiv:2212.07946) | Inference vs recurrent; *task type*, not structure — distance from this. |
+| Kaelbling, Littman & Cassandra, *Artif. Intell.* 1998 | Belief-state sufficiency (idealized theory) — distance from this. |
+| MNAR / informative-missingness statistics | Theoretical scaffolding: "inference helps iff missingness is informative." |
+| Hafner et al. 2023 — DreamerV3 | Leading candidate inference method (not committed). |
+
+### 11.4 Data sources
+
+DOH epi bulletins (weekly cases); PAGASA (rainfall/temperature); PSA 2020 Census (denominators); HDX (`data.humdata.org`, "Philippines dengue"); PhilGIS / NAMRIA (boundaries). *PIDSR granular data requires institutional access — future work.*
 
 ---
 
-## 11 Glossary
-
-Every technical term used in this document, defined in plain language. Terms are also defined inline on first use — this section is the quick lookup.
+## 12 Glossary
 
 | Term | Plain language definition |
 |---|---|
-| **Action space** | The complete set of actions available to the RL agent at each timestep. Can be discrete (a fixed list of options) or continuous (a range of values). |
-| **Agent** | The RL learner. The entity that observes the environment, takes actions, and updates its policy based on reward. |
-| **Bellman equation** | A recursive equation expressing the value of a state as the immediate reward plus the discounted value of the next state. The foundational equation of RL. |
-| **Budget constraint** | A hard limit on the total resources the agent can spend. In the dengue problem, the monthly or seasonal health intervention budget in pesos. |
-| **CMDP** | Constrained Markov Decision Process. An MDP with one or more hard constraints on cumulative cost. |
-| **Compartmental model** | An epidemiological model that divides a population into discrete disease states and tracks flows between them. SEIR and SEIR-SEI are compartmental models. |
-| **CPO** | Constrained Policy Optimization. An RL algorithm that guarantees constraint satisfaction during training. More rigorous than Lagrangian methods but harder to implement. |
-| **Credit assignment problem** | The challenge of determining which past action in a trajectory deserves credit for a delayed reward. |
-| **Dense reward** | A reward received at every timestep. Contrast with sparse reward. |
-| **Discount factor (γ)** | A number between 0 and 1 that weights future rewards. γ = 0.99 means a reward 100 steps away is worth about 37% of a reward now. |
-| **Environment** | In RL, the world the agent interacts with. Receives actions, returns observations and rewards. |
-| **Extrinsic incubation period** | The time between a mosquito biting an infectious human and the mosquito becoming infectious. Approximately 8–12 days for dengue. |
-| **Gymnasium** | The standard Python interface for RL environments (`reset`, `step`, `observation_space`, `action_space`). Maintained by Farama Foundation. |
-| **HER** | Hindsight Experience Replay. A credit assignment method that relabels failed trajectory episodes as successes for alternative goals. |
-| **Intrinsic incubation period** | The time between a human being infected and becoming infectious. Approximately 5–7 days for dengue. |
-| **Lagrangian relaxation** | A method for handling constraints by adding a penalty term (multiplier × constraint violation) to the objective function. |
-| **LSR** | Larval Source Reduction. A dengue intervention that removes standing water where *Aedes* mosquitoes breed. |
-| **MDP** | Markov Decision Process. The mathematical framework for sequential decision-making under uncertainty. |
-| **MLP** | Multi-Layer Perceptron. A standard feedforward neural network. Default policy architecture for vector state spaces. |
-| **ODE** | Ordinary Differential Equation. A differential equation in which the unknown is a function of time. SEIR models are systems of ODEs. |
-| **Off-policy** | An RL setting where the agent can learn from experience generated by a different policy (stored in a replay buffer). SAC is off-policy. |
-| **On-policy** | An RL setting where the agent can only learn from experience generated by its current policy. PPO is on-policy. |
-| **Partial observability** | A setting where the agent cannot observe the true state directly — only a noisy or incomplete observation. |
-| **PIDSR** | Philippine Integrated Disease Surveillance and Response. The DOH surveillance system that collects weekly dengue case reports. |
-| **Policy** | A function mapping states to actions (or distributions over actions). The output of RL training; what is deployed in production. |
-| **POMDP** | Partially Observable MDP. An MDP where the agent receives noisy observations rather than the true state. |
-| **PPO** | Proximal Policy Optimization. A policy gradient RL algorithm with stable, clipped updates. The recommended starting algorithm for this project. |
-| **Reward hacking** | When an agent maximizes the reward signal in a way that does not correspond to the intended behavior. A risk when using proxy rewards. |
-| **Reward shaping** | Adding intermediate rewards to help an agent learn faster. Risks introducing bias toward the proxy signal. |
-| **RUDDER** | Return Decomposition for Delayed Rewards. A credit assignment method that redistributes delayed reward back to the actions that caused it. |
-| **SAC** | Soft Actor-Critic. An off-policy RL algorithm that maximizes both reward and policy entropy. More sample-efficient than PPO but harder to tune. |
-| **SEIR** | Susceptible → Exposed → Infectious → Recovered. Standard compartmental model for diseases with an incubation period. |
-| **SEIR-SEI** | The host-vector dengue model: SEIR for humans + SEI for mosquitoes, coupled through the biting rate. |
-| **SEI** | Susceptible → Exposed → Infectious. The mosquito compartmental model. No recovery compartment — mosquitoes stay infectious until death. |
-| **Serotype** | A variant of a pathogen distinguished by surface antigens. Dengue has four (DENV-1 to DENV-4). Recovery from one does not confer full immunity to others. |
-| **SHAP** | SHapley Additive exPlanations. A method for attributing the contribution of each input feature to a model's output. Used for the explanation module. |
-| **Sim-to-real gap** | The performance degradation when a policy trained in simulation is deployed in the real world, due to differences between simulator and reality. |
-| **Sparse reward** | A reward received only rarely (e.g., at episode end). Makes credit assignment harder. |
-| **State space** | The set of all possible states the environment can be in. Includes case counts, rainfall, budget, week, and intervention history in the dengue MDP. |
-| **Timestep** | A single discrete unit of time in the MDP. One call to `step()` in the environment. Tentatively one week in this project. |
-| **Value function** | A function estimating expected cumulative discounted reward from a given state V(s) or state-action pair Q(s,a). The core object RL algorithms learn. |
-| **Vector** | In epidemiology: an organism (here *Aedes aegypti*) that transmits a pathogen between hosts. Not to be confused with the mathematical vector. |
-| **Wolbachia** | A bacterium introduced into *Aedes* mosquitoes that suppresses dengue transmission. Being trialed in several dengue-endemic countries including the Philippines. |
+| **Action space** | The set of actions available each timestep. Discrete in Aegis v1. |
+| **Agent** | The RL learner. Observes, acts, updates policy from reward. |
+| **Belief state** | The agent's distribution over possible true states given observations. Inferred (approximately) by the inference policy. |
+| **Bellman equation** | Value of state = immediate reward + discounted future value. |
+| **CMDP** | Constrained MDP: an MDP with hard constraints on cumulative cost. |
+| **Credit assignment** | Determining which past action deserves credit for a delayed reward. |
+| **DreamerV3** | World-model RL algorithm (Hafner et al. 2023). Leading *candidate* inference method for Aegis. |
+| **Inference (vs memory)** | Reconstructing the hidden true state from observations using learned dynamics, rather than just remembering past observations. The thesis's central contest. |
+| **Memory (vs inference)** | Conditioning the policy on a history of observations (e.g. a recurrent/LSTM policy). |
+| **MDP / POMDP** | (Partially Observable) Markov Decision Process — the formal frameworks; POMDP = agent sees noisy/incomplete observations. |
+| **PPO** | Proximal Policy Optimization. Primary algorithm; stable, discrete-action, comparable to Mai et al. |
+| **Recurrent baseline** | A memory-based policy (RecurrentPPO) — the bar the inference method must beat (Ni et al. 2022). |
+| **SEIR-SEI** | Dengue host-vector model: SEIR humans + SEI mosquitoes, coupled through biting rate. |
+| **State-correlated (vs state-independent) corruption** | Observation distortion whose *structure* depends on the hidden state (e.g. reporting worsens during surges) vs. distortion independent of it. The property at the heart of the thesis claim. |
+| **World model (Type 1)** | A learned network of environment dynamics enabling hidden-state inference and imagination. The candidate inference method. |
 
 ---
 
-*End of AEGIS.md · This document grows with the project. When something is decided, update it. When something new is discovered, add it. When the north star shifts, rewrite section 01 first.*
+*End of AEGIS.md · The umbrella document. Research-challenge detail lives in `THESIS.md`; methods novelty in `GAP_METHODS.md`; the decision log in `DECISIONS.md`. When something is decided, update it and mark it ✓ DECIDED with rationale; when held open, mark it ⚠ OPEN. The document is more useful with honest uncertainty than with premature answers.*

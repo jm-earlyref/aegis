@@ -12,7 +12,7 @@ Aegis is a research project and CS thesis exploring whether reinforcement learni
 
 The name comes from *aegis* — a shield. And from *Aedes aegypti* — the mosquito that carries dengue. A system that learns to protect communities from the vector that threatens them.
 
-This repository is currently at the **idea and research design stage.** No code yet — just the thinking that will eventually become the code.
+The project runs on two tracks. An **engineering proof-of-concept** (to July) builds a working, deliberately simplified version of the system. The **thesis** then re-introduces the full difficulty of the problem and makes a focused research contribution. See `THESIS.md` for the research framing and `CURRICULUM.md` for the PoC build.
 
 ---
 
@@ -35,114 +35,88 @@ Dengue intervention sequencing is a **sequential decision problem under delayed 
 - Interventions today change mosquito populations and transmission *weeks later*
 - You must allocate a fixed budget across a whole season
 - There are no labeled "optimal policies" to learn from — supervised learning cannot help here
-- The problem is formally a **constrained Markov Decision Process (CMDP)**
+- The problem is formally a **constrained, partially observable Markov decision process**
 
 Supervised learning can predict where dengue risk is high. RL decides what to do about it, in what order, with what you have.
 
 ---
 
-## Why this is hard (and why that's interesting)
+## Why this is hard
 
-Three things make this problem genuinely difficult — and none of them have been tackled together before:
+The health officer's reality is hard along several axes at once — delayed feedback, incomplete (and *biased*) reporting, a hard budget, the choice of where to act, and a world that won't match any model. That full landscape is what makes the problem real. It is **not** the contribution.
 
-**1. Delayed reward.** When cases drop three weeks after fogging, the agent can't easily tell which decision caused it. This is the credit assignment problem. Standard RL methods weren't designed for 3–4 week lags.
+A single thesis cannot conquer all of that, and claiming to would be weaker, not stronger. So the thesis **stakes one axis** as its scientific claim — **partial observability**, the fact that the agent only ever sees a noisy, delayed, ~25% shadow of the true outbreak — and frames the rest honestly as the landscape and as future work.
 
-**2. Partial observability.** The agent never sees the true epidemic state. ~75% of dengue cases are unreported. It must act on a noisy, delayed, incomplete signal.
-
-**3. Hard budget constraints.** Standard RL folds cost into the reward — the agent can overspend if it thinks it's worth it. A real health officer cannot. The budget is a hard limit, not a preference. This requires a proper CMDP formulation, not a reward hack.
-
-Each of these is individually studied in the RL literature. The combination, in a vector-borne disease setting, has not been tackled. That combination is the contribution.
+Within that axis sits a sharp, specific question. Dengue underreporting gets *worse during outbreaks* — the signal is most suppressed exactly when the true epidemic is largest. This is **state-correlated** observation corruption, and the thesis asks whether it is the property that determines when an agent must *infer* the hidden state rather than merely *remember* past observations. (See `THESIS.md`.)
 
 ---
 
 ## What the literature has done
 
-The epidemic RL literature is overwhelmingly COVID/NPI-focused — lockdowns, school closures, vaccination timing. The closest prior work is Mai et al. (IJCAI 2023), which formulates multi-intervention epidemic planning as an MDP over the EpiPolicy simulator using PPO. It is the natural backbone to extend.
+The epidemic RL literature is overwhelmingly COVID/NPI-focused. The closest prior work is Mai et al. (IJCAI 2023), which formulates multi-intervention epidemic planning as an MDP over the EpiPolicy simulator using PPO — the natural backbone to extend. Vector-borne RL exists almost entirely for malaria (IBM Research-Africa, KDD Cup 2019), using simplified bandits without budget constraints or partial observability.
 
-Vector-borne RL exists almost entirely for malaria (IBM Research-Africa, KDD Cup 2019) — using simplified bandits and basic MDPs, not deep RL, without budget constraints or partial observability.
+Two gaps matter here, and Aegis documents both honestly:
 
-**There are zero published papers combining dengue with reinforcement learning for intervention sequencing.** This is a confirmed negative result from a systematic literature search conducted in June 2026. The dengue control literature uses classical optimal control (Pontryagin), agent-based simulation with hand-crafted strategies, or ML forecasting. None of these involve a learning agent making sequential decisions.
+- **Domain gap (`GAP.md`):** there are zero published papers combining dengue with RL for intervention sequencing.
+- **Methods gap (`GAP_METHODS.md`):** the *scientific* claim rests on a narrower, confirmed gap — no deep-RL work isolates *state-correlation of the observation process* as the property governing when inference beats memory. Clean, but narrow, and distinct from prior work on noise *magnitude* and *task type*.
 
 ---
 
-## The target output
+## The two contributions
 
-A trained RL agent wrapped in a simple web tool. A health officer inputs their region, current week, and available budget. The system returns:
+The thesis produces two things that de-risk each other:
 
-- A recommended intervention calendar (what to deploy, where, when) for the next N weeks
-- Projected cases averted vs a fixed-schedule baseline, with a confidence range
-- A plain-language explanation of why each recommendation was made
+1. **An open, RL-ready dengue environment** — a configurable SEIR-SEI partially-observable simulator (Gymnasium-compatible) with a knob for observation structure. The instrument that does not yet exist for dengue the way OpenMalaria did for malaria. Useful to the whole community on its own.
+2. **A characterization of when inference beats memory** — the empirical study tying the inference-vs-memory advantage to the *structure* of observation corruption.
 
-The explainability requirement is not optional. It is a prerequisite for trust. An agent that can't explain itself is an agent a health officer won't use.
+If the method underwhelms, the environment still stands. If the environment is modest, the method still stands.
+
+---
+
+## The target output (product)
+
+A trained RL agent wrapped in a simple web tool. A health officer inputs their region, current week, and available budget. The system returns a recommended intervention calendar, projected cases averted versus a fixed-schedule baseline with a confidence range, and a plain-language explanation of each recommendation. Explainability is a prerequisite for trust, not an optional feature. Full product spec in `PRODUCT.md`.
 
 ---
 
 ## Research philosophy
 
-This project was designed around a specific model of research: **problem-first, method-as-necessary, contribution-as-discovery.**
+This project is designed around a specific model of research: **problem-first, method-as-necessary, contribution-as-discovery.**
 
-The inspiration is AlphaFold — not because this project is as ambitious, but because of the approach. AlphaFold didn't start by asking "what's the most theoretically interesting thing we can do with deep learning?" It asked "how do we solve protein folding?" and then invented whatever the problem demanded. The theory followed the problem.
+The inspiration is AlphaFold — not in ambition, but in approach. AlphaFold didn't ask "what's the most theoretically interesting thing we can do with deep learning?" It asked "how do we solve protein folding?" and invented whatever the problem demanded. The theory followed the problem.
 
-Aegis applies the same logic. The health officer's reality — incomplete data, hard budget, delayed feedback, a fixed seasonal window — is the constraint that forces invention. Whatever novel RL methodology emerges from this project will emerge because the problem demanded it, not because it was selected from a menu of theoretical gaps.
+Aegis applies the same logic. The health officer's reality is the constraint that forces invention. This is also why the *method* for the chosen axis is deliberately **held open** — the world model is the leading candidate, not a foregone commitment. The problem decides.
 
-The dengue domain is the vehicle. The method is the contribution. The health officer's trust is the north star.
-
----
-
-## How this project came to be
-
-This project was developed through a long research design conversation that worked through the following questions in order:
-
-**What problem do I actually care about?** Not "which RL problem should I apply to a domain" — but what real situation in the world is broken and worth fixing. The answer was dengue in the Philippines, grounded in personal experience growing up in Calabarzon.
-
-**What does "solved" look like?** Not a benchmark number. A health officer opening a tool, seeing where to act and when, acting on it, and it working. Fewer cases. Fewer deaths. That image is the north star.
-
-**What does that image demand technically?** Working backward from the health officer's reality to the formal problem: a CMDP with partial observability, multiple intervention types, delayed reward, and hard budget constraints. The technical requirements emerge from the human requirements.
-
-**What has the literature done, and what hasn't it done?** A systematic survey confirmed: epidemic RL is COVID-dominated, vector-borne RL is malaria-only and shallow, dengue + RL is empty. The gap is real.
-
-**What RL methodology does the problem demand?** This is still being worked out. The five open theoretical threads are credit assignment, exploration under constraint, world models, constrained RL, and generalization. The thesis will determine which combination the problem actually requires.
-
-The project is named Aegis. The Pokémon EEVEE was briefly considered as an acronym. It was not used.
+A second principle runs through the project: **novelty is found indoors, in the literature; significance is discovered outdoors, by experiment.** A novel idea proves nothing until the world responds to it. So the research plan resolves novelty first, then runs the cheapest possible experiment to find out whether the effect is even real — before committing months to it.
 
 ---
 
 ## Current status
 
-This repository is at the **research design stage.** The following have been completed:
+**Completed:**
 
-- [x] Problem framing and north star definition
-- [x] Literature survey (June 2026) — confirmed dengue + RL gap
-- [x] Formal MDP/CMDP/POMDP problem structure designed
-- [x] IPO data model for the web tool
-- [x] RL engine semantic specification
-- [x] Full reference document (`docs/reference.md`)
+- [x] Problem framing and north star
+- [x] Domain literature survey — dengue + RL gap confirmed (`GAP.md`)
+- [x] Methods literature survey — observation-structure gap confirmed, narrow (`GAP_METHODS.md`, `research/`)
+- [x] Formal MDP / CMDP / POMDP problem structure (`AEGIS.md` §03)
+- [x] Product / IPO model (`PRODUCT.md`)
+- [x] PoC design decisions — ODE, weekly timestep, 26-week season, discrete actions, full-observability baseline (`DECISIONS.md`)
+- [x] Research framing — contribution axis chosen (partial observability), methods held open, two-contribution structure (`THESIS.md`; Decisions #14–#17)
+- [x] PoC build curriculum (`CURRICULUM.md`)
 
-The following are in progress or not yet started:
+**In progress / not yet started:**
 
-- [ ] Simulator design decision (ODE vs ABM, timestep, season length)
-- [ ] Action space design (discrete vs continuous)
-- [ ] Baseline implementation (reproduce Mai et al. on a dengue environment)
-- [ ] Philippine DOH/PIDSR data acquisition and calibration
+- [ ] Existence experiment — does memory fail *specifically* under state-correlated corruption? (the gate)
+- [ ] Baseline implementation — PPO beats a threshold-rule policy under budget (Q1 PoC)
+- [ ] Open dengue environment — harden the simulator and add the observation-structure knob
+- [ ] Philippine DOH data acquisition and parameter grounding
 - [ ] First training run
 
 ---
 
-## Open design questions
+## Open questions
 
-These are explicit decisions not yet made. They are tracked here honestly rather than papered over.
-
-| Question | Options | Status |
-|---|---|---|
-| Geographic scope | Single municipality vs province vs region | ⚠ Open |
-| Timestep | Daily / weekly / bi-weekly | ⚠ Open |
-| Season length | 26 weeks vs 52 weeks | ⚠ Open |
-| Action space | Discrete vs continuous | ⚠ Open |
-| Interventions in scope | Fogging + larviciding + LSR only, or include vaccines + Wolbachia | ⚠ Open |
-| Budget granularity | Single scalar vs multi-category | ⚠ Open |
-| Partial observability handling | Ignore / observation noise / full POMDP | ⚠ Open |
-| Credit assignment method | Discounting only / RUDDER / HER / world model | ⚠ Open |
-| Explanation method | SHAP / attention / counterfactual / rule extraction | ⚠ Open |
+Most early design decisions are now resolved and logged in `DECISIONS.md`. The research-phase open questions — the final research-question wording, whether to build the synthetic generality environment, and the choice of inference method — live in `THESIS.md` §11. They are deliberately held open until the existence experiment reports.
 
 ---
 
@@ -150,24 +124,54 @@ These are explicit decisions not yet made. They are tracked here honestly rather
 
 ```
 aegis/
-├── README.md              # This file
-├── docs/
-│   └── reference.md       # Full technical reference document
-└── ...                    # Code will live here when the time comes
+├── README.md          # Front door (this file)
+├── AEGIS.md           # Umbrella: domain, formal problem, RL engine
+├── THESIS.md          # The research challenge: claim, question, experiments
+├── PRODUCT.md         # Product & engineering: web tool, architecture
+├── CURRICULUM.md      # The PoC build plan (to July)
+├── GAP.md             # Domain novelty (dengue + RL)
+├── GAP_METHODS.md     # Methods novelty (observation-structure characterization)
+├── DECISIONS.md       # Decision log (append-only)
+└── research/
+    └── DSCOPDWIBMDRPOMDP.md   # Full methods-novelty literature audit
 ```
+
+---
+
+## Knowledge management
+
+This project is documentation-heavy on purpose. It's both a build and a research project, and at this stage **the thinking is the work**. The Markdown files form a deliberate ecosystem — each owns one concern, so they inform rather than drift from each other.
+
+| File | Owns | Read it when |
+|---|---|---|
+| `README.md` | The front door — what Aegis is, why, where it stands | You're new or re-orienting |
+| `AEGIS.md` | The umbrella — north star, dengue domain, formal problem, RL engine | You need the whole technical picture |
+| `THESIS.md` | The research challenge — the hard problem, the claimed contribution, the question, the experiments | Anything about the thesis contribution |
+| `PRODUCT.md` | The product & engineering — web tool, screens, architecture, data | You're building the tool |
+| `CURRICULUM.md` | The PoC build plan (the watered-down regime, to July) | You're executing the engineering PoC |
+| `GAP.md` | Domain novelty (dengue + RL) | Defending "is this a real gap" |
+| `GAP_METHODS.md` | Methods novelty → full evidence in `research/` | Defending the scientific claim |
+| `research/` | Raw research artifacts (e.g. the literature audit) | You need the evidence behind a claim |
+| `DECISIONS.md` | The decision log — every significant call, dated, with rationale | You need to know *why* something was decided |
+
+**Conventions:**
+
+- `DECISIONS.md` is **append-only**, newest on top. Superseded decisions are marked (`⚠ Superseded by #N`), never deleted.
+- **`✓ DECIDED` / `⚠ OPEN`** markers flag what's settled versus still open throughout the docs.
+- **`THESIS.md` owns the research framing.** `AEGIS.md` points to it rather than duplicating it, so the two don't diverge as the research evolves.
+- When a decision changes a document, update the document **and** log the decision in `DECISIONS.md`.
 
 ---
 
 ## Reading list
 
-If you're coming to this cold and want to understand the space:
+If you're coming to this cold and want to understand the space, start with `AEGIS.md` (§11 has the full annotated reading list). The essentials:
 
 - **Mai et al., IJCAI 2023** (arXiv:2301.12802) — the closest prior work; the backbone to extend
-- **Sutton & Barto, Reinforcement Learning: An Introduction** — the RL foundations textbook; free online
-- **Keeling & Rohani, Modeling Infectious Diseases, Ch. 1–3** — the epidemiology foundations; free online
+- **Sutton & Barto, *Reinforcement Learning: An Introduction*** — RL foundations; free online
+- **Keeling & Rohani, *Modeling Infectious Diseases*, Ch. 1–3** — epidemiology foundations; free online
+- **Ni, Eysenbach & Salakhutdinov, ICML 2022** (arXiv:2110.05038) — the strong recurrent baseline the thesis must beat
 - **Miksch et al. 2016/2019** — the only Philippine dengue ABM (Cebu City); parameter reference
-- **Corum et al., arXiv:2601.10967** — Wolbachia optimization for dengue, UP Diliman; closest Philippine prior art
-- **Peng & Perrault, arXiv:2603.19397** — constrained RMAB for outbreak control; best CMDP public health RL
 
 ---
 
@@ -179,4 +183,4 @@ This is both a CS thesis and a genuine attempt to build something useful — a t
 
 ---
 
-*This repository will be updated as the project develops. The reference document in `docs/` is the primary technical source of truth.*
+*This repository is updated as the project develops. `AEGIS.md` is the umbrella source of truth; `THESIS.md` owns the research framing; `DECISIONS.md` records why each call was made.*
